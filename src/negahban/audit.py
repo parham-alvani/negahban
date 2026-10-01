@@ -105,6 +105,28 @@ class AuditLog:
         )
         self._conn.commit()
 
+    def record_manual(self, comment_id: str, action: Action) -> None:
+        """Log an action done by hand (``negahban hide``/``unhide``) on a comment.
+
+        A comment the classifier has judged keeps its verdict and just gets the
+        new action; one it has never seen gets a row with a ``manual`` label,
+        so the log is a complete trail of what negahban did to the account.
+        """
+        if self.get(comment_id) is not None:
+            self.mark_applied(comment_id, action)
+            return
+        now = _now()
+        self._conn.execute(
+            """
+            INSERT INTO decisions
+                (comment_id, media_id, username, text, label, confidence, reason,
+                 action, applied, judged_at, applied_at)
+            VALUES (?, '', '', '', 'manual', 1.0, 'done by hand', ?, 1, ?, ?)
+            """,
+            (comment_id, action.value, now, now),
+        )
+        self._conn.commit()
+
     def pending(self) -> list[AuditRow]:
         """Decisions whose action is hide/delete and has not been applied yet."""
         rows = self._conn.execute(

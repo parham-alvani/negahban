@@ -208,8 +208,7 @@ def hide(
             client.hide(comment_id)
         except GraphError as error:
             raise _fail(str(error)) from error
-        if log.get(comment_id) is not None:
-            log.mark_applied(comment_id, Action.HIDE)
+        log.record_manual(comment_id, Action.HIDE)
     console.print(f"[green]Hid {comment_id}.[/]")
 
 
@@ -319,8 +318,7 @@ def unhide(
             client.unhide(comment_id)
         except GraphError as error:
             raise _fail(str(error)) from error
-        if log.get(comment_id) is not None:
-            log.mark_applied(comment_id, Action.NONE)
+        log.record_manual(comment_id, Action.NONE)
     console.print(f"[green]Unhid {comment_id}.[/]")
 
 
