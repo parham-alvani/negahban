@@ -1,4 +1,8 @@
-# negahban
+<h1 align="center">negahban</h1>
+
+<p align="center">
+  <img src="assets/negahban.png" alt="negahban — a panda on sentry duty" width="256" />
+</p>
 
 _نگهبان_ — a watchman for the comments on your own Instagram posts.
 
