@@ -1,0 +1,13 @@
+# Secrets & token state — never commit
+.env
+token.json
+
+# Moderation audit log (contains other people's comments)
+negahban.db
+
+# Python / uv
+.venv/
+__pycache__/
+*.pyc
+.ruff_cache/
+.pytest_cache/
