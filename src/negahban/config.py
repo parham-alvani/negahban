@@ -28,6 +28,11 @@ AUDIT_DB = Path("negahban.db")
 DEFAULT_MODEL = "claude-opus-5"
 DEFAULT_MAX_POSTS = 10
 
+# Where Instagram sends the browser after login. A static page that shows the
+# code to paste back into the terminal; it must be registered as a redirect
+# URI of the Meta app. Override with NEGAHBAN_REDIRECT_URI.
+DEFAULT_REDIRECT_URI = "https://elaheh-dastan.github.io/negahban/callback/"
+
 
 class ConfigError(RuntimeError):
     """Raised when required configuration is missing or malformed."""
@@ -40,6 +45,7 @@ class Settings:
     ig_app_id: str
     token_store: TokenStore
     model: str
+    redirect_uri: str = DEFAULT_REDIRECT_URI
     allowlist: frozenset[str] = field(default_factory=frozenset)
     _app_secret: str = field(default="", repr=False)
     _app_secret_entry: str = field(default="", repr=False)
@@ -93,6 +99,7 @@ def load_settings(token_file: Path = TOKEN_FILE) -> Settings:
         ig_app_id=app_id,
         token_store=_token_store(token_file),
         model=_env("NEGAHBAN_MODEL") or DEFAULT_MODEL,
+        redirect_uri=_env("NEGAHBAN_REDIRECT_URI") or DEFAULT_REDIRECT_URI,
         allowlist=_parse_allowlist(_env("NEGAHBAN_ALLOWLIST")),
         _app_secret=_env("IG_APP_SECRET"),
         _app_secret_entry=_env("NEGAHBAN_GOPASS_APP_SECRET"),

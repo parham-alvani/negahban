@@ -60,17 +60,21 @@ Secrets live in [gopass](https://www.gopass.pw/), not in `.env`:
 | e.g. `token/meta/main-instagram-app`| the Instagram app secret | `NEGAHBAN_GOPASS_APP_SECRET` |
 | e.g. `token/instagram/your.username`| the access token      | `NEGAHBAN_GOPASS_TOKEN`       |
 
-Get the token on the app's use case page (_API setup with Instagram login_): add your account
-as a tester, accept the invite in the Instagram app, then **Generate token**. Put it in the
-gopass entry (`gopass insert token/instagram/your.username`) and run:
+Connect the account with Instagram's own login page:
 
 ```bash
-uv run negahban auth
+uv run negahban login
 ```
 
-`auth` exchanges it for a 60-day token, writes it back to the entry with an `expires_at:`
-line, and prints which account it belongs to. Later runs refresh the token in place when it
-is a week from expiring.
+It opens Instagram, you approve the two permissions, and Instagram sends the browser to
+negahban's [callback page](https://elaheh-dastan.github.io/negahban/callback/), which shows a
+one-time code to paste back into the terminal. The code becomes a verified 60-day token in the
+gopass entry (with an `expires_at:` line). Later runs refresh it in place when it is a week
+from expiring.
+
+Alternative without the browser flow: on the app's use case page (_API setup with Instagram
+login_) add your account as a tester, accept the invite in the Instagram app, press
+**Generate token**, put it in the gopass entry and run `uv run negahban auth`.
 
 Without gopass: set `IG_APP_SECRET` in `.env`, leave `NEGAHBAN_GOPASS_TOKEN` unset, and seed
 the token with `negahban auth --token 'IGAA...'` — it is then kept in `token.json`.
@@ -84,6 +88,7 @@ uv run negahban scan --apply           # hide what the policy says to hide
 uv run negahban log                    # recent judgements
 uv run negahban log --pending          # hides/deletes decided but not yet applied
 uv run negahban unhide <comment-id>    # undo a hide
+uv run negahban hide <comment-id>      # hide one comment by hand, bypassing the classifier
 ```
 
 Comments already in the log are skipped on later scans, so a `scan` run from cron every
@@ -111,7 +116,7 @@ src/negahban/
   policy.py    verdict + confidence + allowlist -> action
   audit.py     SQLite decision log; makes runs idempotent and reversible
   report.py    terminal tables
-  cli.py       auth / scan / unhide / log
+  cli.py       login / auth / scan / hide / unhide / log
 ```
 
 ## Not in v1

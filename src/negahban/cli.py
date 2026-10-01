@@ -109,13 +109,20 @@ def auth(
     ("Generate access tokens", after adding the account as an Instagram Tester).
     """
     settings = _settings(token_file)
-    store = settings.token_store
     given = Token(token) if token is not None else _stored_token(settings)
+    _store_long_lived(settings, given)
 
+
+def _app_secret(settings: Settings) -> str:
     try:
-        app_secret = settings.app_secret()
+        return settings.app_secret()
     except ConfigError as error:
         raise _fail(str(error)) from error
+
+
+def _store_long_lived(settings: Settings, given: Token) -> None:
+    """Turn any token into a verified 60-day one and persist it."""
+    app_secret = _app_secret(settings)
 
     # A short-lived token (from an OAuth code) must be exchanged; a long-lived
     # one (the dashboard's token generator) is rejected by the exchange and
@@ -146,8 +153,64 @@ def auth(
     expires = f"{fresh.expires_at:%Y-%m-%d}" if fresh.expires_at else "unknown"
     console.print(
         f"[green]Stored {how} token for @{me.get('username')} ({me.get('account_type')}) "
-        f"in {store.describe()}; valid until {expires}.[/]"
+        f"in {settings.token_store.describe()}; valid until {expires}.[/]"
     )
+
+
+@app.command()
+def login(
+    token_file: Annotated[
+        Path,
+        typer.Option("--token-file", help="Token file, used when NEGAHBAN_GOPASS_TOKEN is unset."),
+    ] = TOKEN_FILE,
+    open_browser: Annotated[
+        bool,
+        typer.Option("--open/--no-open", help="Open the Instagram login page in a browser."),
+    ] = True,
+) -> None:
+    """Connect an Instagram professional account through Instagram's login page.
+
+    Instagram sends the browser to negahban's callback page, which shows an
+    authorization code; paste it here. The code becomes a 60-day token that
+    is verified and stored like `negahban auth` does.
+    """
+    settings = _settings(token_file)
+    url = graph.authorize_url(settings.ig_app_id, settings.redirect_uri)
+
+    console.print("Log in with the Instagram professional account negahban should watch:")
+    console.print(f"  [link={url}]{url}[/link]\n")
+    if open_browser:
+        typer.launch(url)
+
+    code = typer.prompt("Paste the code shown on the callback page").strip()
+    if not code:
+        raise _fail("No code given.")
+
+    try:
+        short_lived = graph.exchange_code(
+            settings.ig_app_id, _app_secret(settings), settings.redirect_uri, code
+        )
+    except GraphError as error:
+        raise _fail(f"Could not exchange the code: {error}") from error
+    _store_long_lived(settings, Token(short_lived))
+
+
+@app.command()
+def hide(
+    comment_id: Annotated[str, typer.Argument(help="Comment id to hide.")],
+    token_file: Annotated[Path, typer.Option("--token-file")] = TOKEN_FILE,
+    db: Annotated[Path, typer.Option("--db")] = AUDIT_DB,
+) -> None:
+    """Hide one comment by id, bypassing the classifier; recorded in the log."""
+    token = _load_token(_settings(token_file))
+    with InstagramClient(token) as client, AuditLog(db) as log:
+        try:
+            client.hide(comment_id)
+        except GraphError as error:
+            raise _fail(str(error)) from error
+        if log.get(comment_id) is not None:
+            log.mark_applied(comment_id, Action.HIDE)
+    console.print(f"[green]Hid {comment_id}.[/]")
 
 
 @app.command()

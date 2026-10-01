@@ -22,6 +22,12 @@ from negahban.models import Comment, Media
 GRAPH_VERSION = "v23.0"
 GRAPH_BASE = f"https://graph.instagram.com/{GRAPH_VERSION}"
 TOKEN_BASE = "https://graph.instagram.com"
+AUTHORIZE_URL = "https://www.instagram.com/oauth/authorize"
+CODE_EXCHANGE_URL = "https://api.instagram.com/oauth/access_token"
+
+# The permissions negahban asks for at login: read the account and its media,
+# and read/hide/delete comments. Nothing else.
+SCOPES = ("instagram_business_basic", "instagram_business_manage_comments")
 
 # Refresh when fewer than this many days remain; tokens live 60 days.
 REFRESH_WITHIN = timedelta(days=7)
@@ -70,6 +76,40 @@ def _raise_for_graph_error(response: httpx.Response) -> dict[str, Any]:
 def _parse_timestamp(raw: str) -> datetime:
     # Graph returns e.g. "2024-05-01T12:34:56+0000" — not quite ISO 8601.
     return datetime.strptime(raw, "%Y-%m-%dT%H:%M:%S%z")
+
+
+def authorize_url(app_id: str, redirect_uri: str) -> str:
+    """The Instagram business-login page where the account owner grants access."""
+    query = httpx.QueryParams(
+        {
+            "client_id": app_id,
+            "redirect_uri": redirect_uri,
+            "scope": ",".join(SCOPES),
+            "response_type": "code",
+        }
+    )
+    return f"{AUTHORIZE_URL}?{query}"
+
+
+def exchange_code(app_id: str, app_secret: str, redirect_uri: str, code: str) -> str:
+    """Turn the ``code`` from the login redirect into a short-lived (1h) token.
+
+    Instagram appends ``#_`` to the redirected URL; a code pasted with that
+    suffix is accepted here and cleaned up.
+    """
+    response = httpx.post(
+        CODE_EXCHANGE_URL,
+        data={
+            "client_id": app_id,
+            "client_secret": app_secret,
+            "grant_type": "authorization_code",
+            "redirect_uri": redirect_uri,
+            "code": code.strip().removesuffix("#_"),
+        },
+        timeout=30,
+    )
+    body = _raise_for_graph_error(response)
+    return str(body["access_token"])
 
 
 def exchange_for_long_lived(app_secret: str, short_lived_token: str) -> Token:
