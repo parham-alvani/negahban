@@ -4,6 +4,11 @@
   <img src="assets/negahban.png" alt="negahban — a panda on sentry duty" width="256" />
 </p>
 
+<p align="center">
+  <a href="https://github.com/parham-alvani/negahban/actions/workflows/lint.yml"><img alt="lint &amp; test" src="https://img.shields.io/github/actions/workflow/status/parham-alvani/negahban/lint.yml?label=lint%20%26%20test&logo=github&style=for-the-badge&branch=main" /></a>
+  <img alt="python" src="https://img.shields.io/badge/python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" />
+</p>
+
 _نگهبان_ — a watchman for the comments on your own Instagram posts.
 
 It reads new comments through Meta's **official Instagram API**, asks Claude what each one
