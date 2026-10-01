@@ -11,10 +11,18 @@ from rich.console import Console
 from negahban import graph, report
 from negahban.audit import AuditLog
 from negahban.classify import Classifier
-from negahban.config import AUDIT_DB, DEFAULT_MAX_POSTS, TOKEN_FILE, ConfigError, load_settings
+from negahban.config import (
+    AUDIT_DB,
+    DEFAULT_MAX_POSTS,
+    TOKEN_FILE,
+    ConfigError,
+    Settings,
+    load_settings,
+)
 from negahban.graph import GraphError, InstagramClient, Token
 from negahban.models import Action, Decision
 from negahban.policy import Policy
+from negahban.secrets import SecretError
 
 app = typer.Typer(
     help="Keep watch over the comments on your Instagram posts.",
@@ -33,19 +41,34 @@ def _fail(message: str) -> typer.Exit:
     return typer.Exit(code=1)
 
 
-def _load_token(token_file: Path) -> Token:
-    """Return a valid token from disk, refreshing (and re-saving) when it is near expiry."""
-    token = Token.load(token_file)
+def _settings(token_file: Path) -> Settings:
+    try:
+        return load_settings(token_file)
+    except ConfigError as error:
+        raise _fail(str(error)) from error
+
+
+def _load_token(settings: Settings) -> Token:
+    """Return a valid token from the store, refreshing (and re-saving) near expiry."""
+    store = settings.token_store
+    token = store.load()
     if token is None:
-        raise _fail(f"No token in {token_file}. Run `negahban auth` first.")
+        raise _fail(f"No token in {store.describe()}. Run `negahban auth` first.")
     if token.needs_refresh:
         console.print("[cyan]Access token is near expiry — refreshing...[/]")
         try:
             token = graph.refresh_long_lived(token)
         except GraphError as error:
             raise _fail(f"Could not refresh token: {error}") from error
-        token.save(token_file)
+        _save_token(settings, token)
     return token
+
+
+def _save_token(settings: Settings, token: Token) -> None:
+    try:
+        settings.token_store.save(token)
+    except SecretError as error:
+        raise _fail(f"Could not save token: {error}") from error
 
 
 @app.command()
@@ -54,35 +77,45 @@ def auth(
         str | None,
         typer.Option(
             "--token",
-            help="An access token to store (overrides IG_ACCESS_TOKEN). A short-lived token "
-            "is exchanged for a long-lived one; a long-lived one is stored as is.",
+            help="An access token to store. Without it, the token already in the store "
+            "(e.g. pasted into the gopass entry) is used.",
         ),
     ] = None,
     token_file: Annotated[
-        Path, typer.Option("--token-file", help="Where the token is kept.")
+        Path,
+        typer.Option("--token-file", help="Token file, used when NEGAHBAN_GOPASS_TOKEN is unset."),
     ] = TOKEN_FILE,
 ) -> None:
-    """Store an Instagram access token and check which account it belongs to.
+    """Exchange and store an Instagram access token; report which account it is for.
 
     Get a token from the app's use case page on developers.facebook.com
     ("Generate access tokens", after adding the account as an Instagram Tester).
     """
-    try:
-        settings = load_settings()
-    except ConfigError as error:
-        raise _fail(str(error)) from error
+    settings = _settings(token_file)
+    store = settings.token_store
 
-    raw = token or settings.initial_access_token
-    if not raw:
-        raise _fail("Pass --token or set IG_ACCESS_TOKEN in .env.")
+    raw = token
+    if raw is None:
+        existing = store.load()
+        if existing is None:
+            raise _fail(f"No token in {store.describe()}; pass --token or put one there.")
+        raw = existing.access_token
 
+    # A short-lived token (from an OAuth code) must be exchanged; a long-lived
+    # one (the dashboard's token generator) is rejected by the exchange and
+    # must be refreshed instead. Either way we end up with a 60-day token
+    # whose expiry we know.
     try:
-        # Exchanging a long-lived token is harmless: Meta returns a fresh 60-day
-        # one either way, so we need not know which kind we were given.
         stored = graph.exchange_for_long_lived(settings.ig_app_secret, raw)
-    except GraphError as error:
-        raise _fail(f"Token exchange failed: {error}") from error
-    stored.save(token_file)
+    except GraphError as exchange_error:
+        try:
+            stored = graph.refresh_long_lived(raw)
+        except GraphError as refresh_error:
+            raise _fail(
+                f"Token is neither exchangeable ({exchange_error}) "
+                f"nor refreshable ({refresh_error})."
+            ) from refresh_error
+    _save_token(settings, stored)
 
     try:
         with InstagramClient(stored) as client:
@@ -92,7 +125,7 @@ def auth(
 
     console.print(
         f"[green]Stored token for @{me.get('username')} ({me.get('account_type')}) "
-        f"in {token_file}; valid until {stored.expires_at:%Y-%m-%d}.[/]"
+        f"in {store.describe()}; valid until {stored.expires_at:%Y-%m-%d}.[/]"
     )
 
 
@@ -122,12 +155,8 @@ def scan(
     db: Annotated[Path, typer.Option("--db", help="Audit log location.")] = AUDIT_DB,
 ) -> None:
     """Fetch new comments, classify them, decide, and (with --apply) act."""
-    try:
-        settings = load_settings()
-    except ConfigError as error:
-        raise _fail(str(error)) from error
-
-    token = _load_token(token_file)
+    settings = _settings(token_file)
+    token = _load_token(settings)
     policy = Policy(
         hide_threshold=hide_threshold, delete_junk=delete_junk, allowlist=settings.allowlist
     )
@@ -200,7 +229,7 @@ def unhide(
     db: Annotated[Path, typer.Option("--db")] = AUDIT_DB,
 ) -> None:
     """Reverse a hide: make the comment visible again and note it in the log."""
-    token = _load_token(token_file)
+    token = _load_token(_settings(token_file))
     with InstagramClient(token) as client, AuditLog(db) as log:
         try:
             client.unhide(comment_id)

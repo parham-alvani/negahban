@@ -46,18 +46,30 @@ Guard rails, on purpose:
 
 ```bash
 uv sync
-cp .env.example .env    # fill in IG_APP_ID / IG_APP_SECRET (the *Instagram* app ones)
+cp .env.example .env    # fill in IG_APP_ID (the *Instagram* app id) and the gopass entries
 ```
 
-Get a token: on the app's use case page (_API setup with Instagram login_) add your account
-as a tester, then **Generate access tokens**. Store it:
+Secrets live in [gopass](https://www.gopass.pw/), not in `.env`:
+
+| gopass entry (your choice of path)  | first line            | set in `.env` as              |
+| ----------------------------------- | --------------------- | ----------------------------- |
+| e.g. `token/meta/main-instagram-app`| the Instagram app secret | `NEGAHBAN_GOPASS_APP_SECRET` |
+| e.g. `token/instagram/your.username`| the access token      | `NEGAHBAN_GOPASS_TOKEN`       |
+
+Get the token on the app's use case page (_API setup with Instagram login_): add your account
+as a tester, accept the invite in the Instagram app, then **Generate token**. Put it in the
+gopass entry (`gopass insert token/instagram/your.username`) and run:
 
 ```bash
-uv run negahban auth --token 'IGAA...'
+uv run negahban auth
 ```
 
-`auth` exchanges it for a 60-day token, saves it to `token.json`, and prints which account it
-belongs to. Later runs refresh the token automatically when it is a week from expiring.
+`auth` exchanges it for a 60-day token, writes it back to the entry with an `expires_at:`
+line, and prints which account it belongs to. Later runs refresh the token in place when it
+is a week from expiring.
+
+Without gopass: set `IG_APP_SECRET` in `.env`, leave `NEGAHBAN_GOPASS_TOKEN` unset, and seed
+the token with `negahban auth --token 'IGAA...'` — it is then kept in `token.json`.
 
 ## Usage
 
@@ -83,13 +95,14 @@ Comments already in the log are skipped on later scans, so a `scan` run from cro
 | `--delete-junk`        | off     | Delete spam/scam instead of hiding.                     |
 | `--rescan`             | off     | Re-judge comments already in the audit log.             |
 | `--db PATH`            | `negahban.db` | Audit log location.                               |
-| `--token-file PATH`    | `token.json`  | Where the access token is kept.                   |
+| `--token-file PATH`    | `token.json`  | Token file, only when `NEGAHBAN_GOPASS_TOKEN` is unset. |
 
 ## Layout
 
 ```
 src/negahban/
   graph.py     Instagram API client: media, comments, hide/unhide/delete, token refresh
+  secrets.py   gopass access and the token stores (gopass entry or token.json)
   classify.py  Claude classifier — batched, structured output, caption as context
   policy.py    verdict + confidence + allowlist -> action
   audit.py     SQLite decision log; makes runs idempotent and reversible

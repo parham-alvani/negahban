@@ -8,18 +8,18 @@ professional (Business/Creator) Instagram account and a user token carrying
 
 from __future__ import annotations
 
-import json
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import Any
 
 import httpx
 
-from negahban.config import GRAPH_VERSION
 from negahban.models import Comment, Media
 
+# Graph API version negahban talks to. Versions live for about two years; bump
+# deliberately and re-check the comment fields when you do.
+GRAPH_VERSION = "v23.0"
 GRAPH_BASE = f"https://graph.instagram.com/{GRAPH_VERSION}"
 TOKEN_BASE = "https://graph.instagram.com"
 
@@ -45,24 +45,6 @@ class Token:
     @property
     def needs_refresh(self) -> bool:
         return datetime.now(UTC) + REFRESH_WITHIN >= self.expires_at
-
-    def save(self, path: Path) -> None:
-        path.write_text(
-            json.dumps(
-                {"access_token": self.access_token, "expires_at": self.expires_at.isoformat()}
-            ),
-            encoding="utf-8",
-        )
-
-    @classmethod
-    def load(cls, path: Path) -> Token | None:
-        if not path.exists():
-            return None
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return cls(
-            access_token=str(data["access_token"]),
-            expires_at=datetime.fromisoformat(str(data["expires_at"])),
-        )
 
 
 def _raise_for_graph_error(response: httpx.Response) -> dict[str, Any]:
@@ -102,11 +84,17 @@ def exchange_for_long_lived(app_secret: str, short_lived_token: str) -> Token:
     )
 
 
-def refresh_long_lived(token: Token) -> Token:
-    """Extend a long-lived token for another 60 days."""
+def refresh_long_lived(token: Token | str) -> Token:
+    """Extend a long-lived token for another 60 days.
+
+    Also the way to learn the expiry of a long-lived token obtained elsewhere
+    (the dashboard's token generator hands out long-lived ones, which
+    ``ig_exchange_token`` rejects).
+    """
+    access_token = token if isinstance(token, str) else token.access_token
     response = httpx.get(
         f"{TOKEN_BASE}/refresh_access_token",
-        params={"grant_type": "ig_refresh_token", "access_token": token.access_token},
+        params={"grant_type": "ig_refresh_token", "access_token": access_token},
         timeout=30,
     )
     body = _raise_for_graph_error(response)
