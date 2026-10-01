@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -48,19 +49,35 @@ def _settings(token_file: Path) -> Settings:
         raise _fail(str(error)) from error
 
 
-def _load_token(settings: Settings) -> Token:
-    """Return a valid token from the store, refreshing (and re-saving) near expiry."""
+def _stored_token(settings: Settings) -> Token:
     store = settings.token_store
-    token = store.load()
+    try:
+        token = store.load()
+    except SecretError as error:
+        raise _fail(str(error)) from error
     if token is None:
         raise _fail(f"No token in {store.describe()}. Run `negahban auth` first.")
-    if token.needs_refresh:
-        console.print("[cyan]Access token is near expiry — refreshing...[/]")
-        try:
-            token = graph.refresh_long_lived(token)
-        except GraphError as error:
-            raise _fail(f"Could not refresh token: {error}") from error
-        _save_token(settings, token)
+    return token
+
+
+def _load_token(settings: Settings) -> Token:
+    """Return a usable token from the store, refreshing (and re-saving) near expiry.
+
+    A refresh that fails is not fatal while the token itself still works: the
+    expiry may simply be unknown (pasted by hand) or still days away.
+    """
+    token = _stored_token(settings)
+    if not token.needs_refresh:
+        return token
+    console.print("[cyan]Refreshing the access token...[/]")
+    try:
+        token = graph.refresh_long_lived(token)
+    except GraphError as error:
+        if token.expires_at is not None and token.expires_at <= datetime.now(UTC):
+            raise _fail(f"Token has expired and could not be refreshed: {error}") from error
+        console.print(f"[yellow]Could not refresh ({error}); using the stored token as is.[/]")
+        return token
+    _save_token(settings, token)
     return token
 
 
@@ -93,39 +110,43 @@ def auth(
     """
     settings = _settings(token_file)
     store = settings.token_store
+    given = Token(token) if token is not None else _stored_token(settings)
 
-    raw = token
-    if raw is None:
-        existing = store.load()
-        if existing is None:
-            raise _fail(f"No token in {store.describe()}; pass --token or put one there.")
-        raw = existing.access_token
+    try:
+        app_secret = settings.app_secret()
+    except ConfigError as error:
+        raise _fail(str(error)) from error
 
     # A short-lived token (from an OAuth code) must be exchanged; a long-lived
     # one (the dashboard's token generator) is rejected by the exchange and
     # must be refreshed instead. Either way we end up with a 60-day token
     # whose expiry we know.
     try:
-        stored = graph.exchange_for_long_lived(settings.ig_app_secret, raw)
+        fresh = graph.exchange_for_long_lived(app_secret, given.access_token)
+        how = "exchanged"
     except GraphError as exchange_error:
         try:
-            stored = graph.refresh_long_lived(raw)
+            fresh = graph.refresh_long_lived(given)
+            how = "refreshed"
         except GraphError as refresh_error:
             raise _fail(
                 f"Token is neither exchangeable ({exchange_error}) "
                 f"nor refreshable ({refresh_error})."
             ) from refresh_error
-    _save_token(settings, stored)
 
+    # Verify before persisting, so a token with the wrong scopes never
+    # replaces a working one in the store.
     try:
-        with InstagramClient(stored) as client:
+        with InstagramClient(fresh) as client:
             me = client.me()
     except GraphError as error:
-        raise _fail(f"Token works for exchange but /me failed: {error}") from error
+        raise _fail(f"Token was {how} but /me rejected it, not storing: {error}") from error
+    _save_token(settings, fresh)
 
+    expires = f"{fresh.expires_at:%Y-%m-%d}" if fresh.expires_at else "unknown"
     console.print(
-        f"[green]Stored token for @{me.get('username')} ({me.get('account_type')}) "
-        f"in {store.describe()}; valid until {stored.expires_at:%Y-%m-%d}.[/]"
+        f"[green]Stored {how} token for @{me.get('username')} ({me.get('account_type')}) "
+        f"in {store.describe()}; valid until {expires}.[/]"
     )
 
 

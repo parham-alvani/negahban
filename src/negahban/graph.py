@@ -23,8 +23,7 @@ GRAPH_VERSION = "v23.0"
 GRAPH_BASE = f"https://graph.instagram.com/{GRAPH_VERSION}"
 TOKEN_BASE = "https://graph.instagram.com"
 
-# Refresh when fewer than this many days remain; tokens live 60 days and can
-# only be refreshed once they are at least 24 hours old.
+# Refresh when fewer than this many days remain; tokens live 60 days.
 REFRESH_WITHIN = timedelta(days=7)
 
 _COMMENT_FIELDS = "id,text,timestamp,username,hidden"
@@ -37,13 +36,20 @@ class GraphError(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class Token:
-    """A long-lived user access token and when it stops working."""
+    """A long-lived user access token and, when known, when it stops working.
+
+    ``expires_at`` is ``None`` for a token pasted in by hand: Meta has no
+    endpoint that reports a token's expiry, so it is only learned by
+    refreshing, which hands back a fresh token with a known lifetime.
+    """
 
     access_token: str
-    expires_at: datetime
+    expires_at: datetime | None = None
 
     @property
     def needs_refresh(self) -> bool:
+        if self.expires_at is None:
+            return True
         return datetime.now(UTC) + REFRESH_WITHIN >= self.expires_at
 
 
@@ -84,17 +90,16 @@ def exchange_for_long_lived(app_secret: str, short_lived_token: str) -> Token:
     )
 
 
-def refresh_long_lived(token: Token | str) -> Token:
+def refresh_long_lived(token: Token) -> Token:
     """Extend a long-lived token for another 60 days.
 
-    Also the way to learn the expiry of a long-lived token obtained elsewhere
-    (the dashboard's token generator hands out long-lived ones, which
-    ``ig_exchange_token`` rejects).
+    Also the way to learn the expiry of a long-lived token obtained elsewhere:
+    the dashboard's token generator hands out long-lived ones, which
+    ``ig_exchange_token`` rejects, and refreshing works on them right away.
     """
-    access_token = token if isinstance(token, str) else token.access_token
     response = httpx.get(
         f"{TOKEN_BASE}/refresh_access_token",
-        params={"grant_type": "ig_refresh_token", "access_token": access_token},
+        params={"grant_type": "ig_refresh_token", "access_token": token.access_token},
         timeout=30,
     )
     body = _raise_for_graph_error(response)
