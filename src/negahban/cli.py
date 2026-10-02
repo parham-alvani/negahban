@@ -340,7 +340,7 @@ def log(
     with AuditLog(db) as audit:
         rows = audit.pending() if pending else audit.recent(limit)
     if not rows:
-        console.print("[dim]Nothing in the log yet.[/]")
+        console.print("[dim]Nothing pending.[/]" if pending else "[dim]Nothing in the log yet.[/]")
         return
     report.print_rows(rows, console=console, title="Pending actions" if pending else "Audit log")
 
