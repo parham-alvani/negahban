@@ -232,11 +232,14 @@ class InstagramClient:
         )
         return flatten_comments(items, media.media_id)
 
-    @staticmethod
-    def _comment_from_item(
-        item: dict[str, Any], media_id: str, *, parent_id: str | None
-    ) -> Comment:
-        return _comment_from_item(item, media_id, parent_id=parent_id)
+    def hide(self, comment_id: str) -> None:
+        self._post(f"/{comment_id}", hide=True)
+
+    def unhide(self, comment_id: str) -> None:
+        self._post(f"/{comment_id}", hide=False)
+
+    def delete(self, comment_id: str) -> None:
+        self._delete(f"/{comment_id}")
 
 
 def flatten_comments(items: list[dict[str, Any]], media_id: str) -> list[Comment]:
@@ -272,23 +275,14 @@ def flatten_comments(items: list[dict[str, Any]], media_id: str) -> list[Comment
 
 
 def _comment_from_item(item: dict[str, Any], media_id: str, *, parent_id: str | None) -> Comment:
-        author = item.get("from") or {}
-        return Comment(
-            comment_id=str(item["id"]),
-            media_id=media_id,
-            # Both are absent for comments by deactivated/blocked users.
-            username=str(author.get("username") or item.get("username") or ""),
-            text=str(item.get("text") or ""),
-            timestamp=_parse_timestamp(str(item["timestamp"])),
-            hidden=bool(item.get("hidden", False)),
-            parent_id=parent_id,
-        )
-
-    def hide(self, comment_id: str) -> None:
-        self._post(f"/{comment_id}", hide=True)
-
-    def unhide(self, comment_id: str) -> None:
-        self._post(f"/{comment_id}", hide=False)
-
-    def delete(self, comment_id: str) -> None:
-        self._delete(f"/{comment_id}")
+    author = item.get("from") or {}
+    return Comment(
+        comment_id=str(item["id"]),
+        media_id=media_id,
+        # Both are absent for comments by deactivated/blocked users.
+        username=str(author.get("username") or item.get("username") or ""),
+        text=str(item.get("text") or ""),
+        timestamp=_parse_timestamp(str(item["timestamp"])),
+        hidden=bool(item.get("hidden", False)),
+        parent_id=parent_id,
+    )
