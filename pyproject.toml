@@ -3,7 +3,7 @@ name = "negahban"
 version = "0.1.0"
 description = "Instagram comment moderator on the official Instagram API: classifies comments with Claude and hides abuse and spam."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 dependencies = [
     "anthropic>=1.0.0",
     "httpx>=0.28.0",
@@ -32,7 +32,7 @@ dev = [
 
 [tool.ruff]
 src = ["src", "tests"]
-target-version = "py311"
+target-version = "py314"
 line-length = 100
 
 [tool.ruff.lint]
@@ -46,7 +46,7 @@ select = ["E", "F", "I", "UP", "B", "ANN", "RUF"]
 testpaths = ["tests"]
 
 [tool.ty.environment]
-python-version = "3.11"
+python-version = "3.14"
 
 [tool.ty.rules]
 # Keep the type checker strict.

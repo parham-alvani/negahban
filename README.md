@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="https://github.com/parham-alvani/negahban/actions/workflows/lint.yml"><img alt="lint &amp; test" src="https://img.shields.io/github/actions/workflow/status/parham-alvani/negahban/lint.yml?label=lint%20%26%20test&logo=github&style=for-the-badge&branch=main" /></a>
-  <img alt="python" src="https://img.shields.io/badge/python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" />
+  <img alt="python" src="https://img.shields.io/badge/python-3.14%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" />
 </p>
 
 _نگهبان_ — a watchman for the comments on your own Instagram posts.
@@ -46,10 +46,13 @@ Guard rails, on purpose:
 - A **professional** Instagram account (Business or Creator). Personal accounts cannot use
   the API — convert in Instagram's settings first.
 - A Meta app with the _Manage messaging & content on Instagram_ use case and the
-  `instagram_business_basic` + `instagram_business_manage_comments` permissions. In
-  development mode this works for accounts you add as **Instagram Testers**; no App Review.
-- An Anthropic API key (or an `ant auth login` profile).
-- [`uv`](https://docs.astral.sh/uv/).
+  `instagram_business_basic` + `instagram_business_manage_comments` permissions, **published**
+  (Live mode). No App Review or Business Verification is needed to moderate your own account —
+  Standard Access covers that — but the app must be live: in Development mode Meta only returns
+  data created by people with a role on the app, so `GET /{media}/comments` comes back empty
+  for everyone else's comments while hide/delete still succeed.
+- An Anthropic API key.
+- Python 3.14 and [`uv`](https://docs.astral.sh/uv/).
 
 ## Setup
 
@@ -64,6 +67,7 @@ Secrets live in [gopass](https://www.gopass.pw/), not in `.env`:
 | ----------------------------------- | --------------------- | ----------------------------- |
 | e.g. `token/meta/main-instagram-app`| the Instagram app secret | `NEGAHBAN_GOPASS_APP_SECRET` |
 | e.g. `token/instagram/your.username`| the access token      | `NEGAHBAN_GOPASS_TOKEN`       |
+| e.g. `token/anthropic/negahban`     | the Anthropic API key | `NEGAHBAN_GOPASS_ANTHROPIC_KEY` (else the SDK's `ANTHROPIC_API_KEY`) |
 
 Connect the account with Instagram's own login page:
 
@@ -127,5 +131,5 @@ src/negahban/
 ## Not in v1
 
 - Facebook Page comments (the Graph layer is the same shape; a second adapter).
-- Webhooks — Meta only delivers them to published apps, so negahban polls.
+- Webhooks — they need a public HTTPS endpoint; negahban stays serverless and polls instead.
 - Auto-replies to flagged comments.
