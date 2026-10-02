@@ -9,7 +9,7 @@
   <img alt="python" src="https://img.shields.io/badge/python-3.14%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" />
 </p>
 
-_نگهبان_ — a watchman for the comments on your own Instagram posts.
+<b><span dir="rtl" lang="fa">نگهبان</span></b> (<i>negahbān</i>, Persian for <i>watchman</i>) — keeps watch over the comments on your own Instagram posts.
 
 It reads new comments through Meta's **official Instagram API**, asks Claude what each one
 is (abuse, spam, a scam, a civil complaint, or just fine), and hides the abusive and junk
@@ -40,6 +40,17 @@ Guard rails, on purpose:
   default 0.8) is flagged for you instead of acted on.
 - **Allowlist.** Usernames in `NEGAHBAN_ALLOWLIST` are never touched.
 - **Audit log.** `negahban.db` records every verdict and action; `negahban unhide <id>` reverses.
+
+## In action
+
+A dry run over the newest posts — abuse and junk proposed for hiding, civil criticism and
+uncertain calls only flagged (demo data):
+
+<p align="center"><img src="assets/scan.svg" alt="negahban scan: a table of decisions with action, label, confidence, user, comment and reason" width="900" /></p>
+
+The audit log afterwards, with the applied hides:
+
+<p align="center"><img src="assets/log.svg" alt="negahban log: the audit trail of every judged comment" width="900" /></p>
 
 ## Requirements
 

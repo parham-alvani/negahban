@@ -283,29 +283,32 @@ def scan(
 
         report.print_decisions(decisions, console=console)
 
-        actionable = [d for d in decisions if d.action in (Action.HIDE, Action.DELETE)]
-        if not actionable:
+        # Act on everything decided but not yet done: this run's hides/deletes
+        # plus any left over from earlier dry runs, which the skip-already-judged
+        # rule above would otherwise never reach again.
+        pending = log.pending()
+        if not pending:
             return
         if not apply:
-            console.print("\n[dim]Dry run — nothing changed. Re-run with --apply to act.[/]")
+            console.print(
+                f"\n[dim]Dry run — nothing changed. {len(pending)} action(s) pending; "
+                "re-run with --apply to act.[/]"
+            )
             return
 
         console.print("")
-        for decision in actionable:
-            cid = decision.comment.comment_id
+        for row in pending:
+            action = Action(row.action)
             try:
-                if decision.action is Action.DELETE:
-                    client.delete(cid)
+                if action is Action.DELETE:
+                    client.delete(row.comment_id)
                 else:
-                    client.hide(cid)
+                    client.hide(row.comment_id)
             except GraphError as error:
-                console.print(f"[yellow]Could not {decision.action.value} {cid}: {error}[/]")
+                console.print(f"[yellow]Could not {action.value} {row.comment_id}: {error}[/]")
                 continue
-            log.mark_applied(cid, decision.action)
-            console.print(
-                f"[green]{decision.action.value}[/] @{decision.comment.username}: "
-                f"{report._clip(decision.comment.text)}"
-            )
+            log.mark_applied(row.comment_id, action)
+            console.print(f"[green]{action.value}[/] @{row.username}: {report._clip(row.text)}")
 
 
 @app.command()
