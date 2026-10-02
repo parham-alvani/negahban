@@ -50,23 +50,37 @@ class Settings:
     _app_secret: str = field(default="", repr=False)
     _app_secret_entry: str = field(default="", repr=False)
 
+    _anthropic_key_entry: str = field(default="", repr=False)
+
     def app_secret(self) -> str:
         """The Instagram app secret, fetched from gopass only when asked for.
 
-        Only ``auth`` needs it (to exchange a short-lived token), so a scan or
-        an unhide never pays for a gopass call — or a passphrase prompt.
+        Only ``auth``/``login`` need it (to exchange a token), so a scan or an
+        unhide never pays for a gopass call — or a passphrase prompt.
         """
         if self._app_secret:
             return self._app_secret
-        if not self._app_secret_entry:
-            raise ConfigError(
-                "Set IG_APP_SECRET, or NEGAHBAN_GOPASS_APP_SECRET to the gopass entry holding "
-                "the Instagram app secret. See .env.example."
-            )
-        try:
-            return gopass_show(self._app_secret_entry)[0].strip()
-        except SecretError as error:
-            raise ConfigError(str(error)) from error
+        return _from_gopass(
+            self._app_secret_entry,
+            "Set IG_APP_SECRET, or NEGAHBAN_GOPASS_APP_SECRET to the gopass entry holding "
+            "the Instagram app secret. See .env.example.",
+        )
+
+    def anthropic_api_key(self) -> str | None:
+        """The Claude API key from gopass, or ``None`` to let the SDK resolve it
+        from ``ANTHROPIC_API_KEY`` / ``ANTHROPIC_AUTH_TOKEN`` itself."""
+        if not self._anthropic_key_entry:
+            return None
+        return _from_gopass(self._anthropic_key_entry, "")
+
+
+def _from_gopass(entry: str, missing_message: str) -> str:
+    if not entry:
+        raise ConfigError(missing_message)
+    try:
+        return gopass_show(entry)[0].strip()
+    except SecretError as error:
+        raise ConfigError(str(error)) from error
 
 
 def _parse_allowlist(raw: str) -> frozenset[str]:
@@ -103,4 +117,5 @@ def load_settings(token_file: Path = TOKEN_FILE) -> Settings:
         allowlist=_parse_allowlist(_env("NEGAHBAN_ALLOWLIST")),
         _app_secret=_env("IG_APP_SECRET"),
         _app_secret_entry=_env("NEGAHBAN_GOPASS_APP_SECRET"),
+        _anthropic_key_entry=_env("NEGAHBAN_GOPASS_ANTHROPIC_KEY"),
     )

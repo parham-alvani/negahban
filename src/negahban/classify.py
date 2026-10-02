@@ -76,9 +76,16 @@ def _render_batch(media: Media, comments: Sequence[Comment]) -> str:
 class Classifier:
     """Judge comments with Claude, one request per batch."""
 
-    def __init__(self, model: str, client: anthropic.Anthropic | None = None) -> None:
+    def __init__(
+        self,
+        model: str,
+        client: anthropic.Anthropic | None = None,
+        api_key: str | None = None,
+    ) -> None:
         self._model = model
-        self._client = client or anthropic.Anthropic()
+        # With no key given the SDK resolves ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN
+        # on its own; a key from gopass is passed explicitly.
+        self._client = client or anthropic.Anthropic(api_key=api_key)
 
     def classify(self, media: Media, comments: Sequence[Comment]) -> dict[str, Verdict]:
         """Return ``{comment_id: Verdict}`` for every comment given.

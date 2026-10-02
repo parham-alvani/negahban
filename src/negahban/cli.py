@@ -243,7 +243,10 @@ def scan(
     policy = Policy(
         hide_threshold=hide_threshold, delete_junk=delete_junk, allowlist=settings.allowlist
     )
-    classifier = Classifier(settings.model)
+    try:
+        classifier = Classifier(settings.model, api_key=settings.anthropic_api_key())
+    except ConfigError as error:
+        raise _fail(str(error)) from error
     decisions: list[Decision] = []
 
     with InstagramClient(token) as client, AuditLog(db) as log:

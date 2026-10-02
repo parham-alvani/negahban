@@ -32,7 +32,9 @@ SCOPES = ("instagram_business_basic", "instagram_business_manage_comments")
 # Refresh when fewer than this many days remain; tokens live 60 days.
 REFRESH_WITHIN = timedelta(days=7)
 
-_COMMENT_FIELDS = "id,text,timestamp,username,hidden"
+# ``username`` is only filled in for the account owner's own comments; other
+# people's show up under ``from``. Ask for both and prefer ``from``.
+_COMMENT_FIELDS = "id,text,timestamp,username,from,hidden"
 _REPLY_FIELDS = f"replies{{{_COMMENT_FIELDS}}}"
 
 
@@ -239,11 +241,12 @@ class InstagramClient:
     def _comment_from_item(
         item: dict[str, Any], media_id: str, *, parent_id: str | None
     ) -> Comment:
+        author = item.get("from") or {}
         return Comment(
             comment_id=str(item["id"]),
             media_id=media_id,
-            # ``username`` is absent for comments by deactivated/blocked users.
-            username=str(item.get("username") or ""),
+            # Both are absent for comments by deactivated/blocked users.
+            username=str(author.get("username") or item.get("username") or ""),
             text=str(item.get("text") or ""),
             timestamp=_parse_timestamp(str(item["timestamp"])),
             hidden=bool(item.get("hidden", False)),
