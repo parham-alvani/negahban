@@ -222,25 +222,56 @@ class InstagramClient:
     # -- comments ------------------------------------------------------------
 
     def comments(self, media: Media) -> list[Comment]:
-        """Every top-level comment on ``media`` and its replies, flattened."""
-        found: list[Comment] = []
-        for item in self._paginate(
-            f"/{media.media_id}/comments",
-            fields=f"{_COMMENT_FIELDS},{_REPLY_FIELDS}",
-            limit=50,
-        ):
-            parent = self._comment_from_item(item, media.media_id, parent_id=None)
-            found.append(parent)
-            for reply in item.get("replies", {}).get("data", []):
-                found.append(
-                    self._comment_from_item(reply, media.media_id, parent_id=parent.comment_id)
-                )
-        return found
+        """Every comment on ``media``, replies included, each exactly once."""
+        items = list(
+            self._paginate(
+                f"/{media.media_id}/comments",
+                fields=f"{_COMMENT_FIELDS},{_REPLY_FIELDS}",
+                limit=50,
+            )
+        )
+        return flatten_comments(items, media.media_id)
 
     @staticmethod
     def _comment_from_item(
         item: dict[str, Any], media_id: str, *, parent_id: str | None
     ) -> Comment:
+        return _comment_from_item(item, media_id, parent_id=parent_id)
+
+
+def flatten_comments(items: list[dict[str, Any]], media_id: str) -> list[Comment]:
+    """Turn the raw comments edge into one ``Comment`` per id.
+
+    Instagram lists every reply twice: nested under its parent's ``replies``
+    and again as a top-level item. The nested copy is the useful one (it knows
+    its parent), so replies are collected first and the top-level pass skips
+    anything already seen. Order follows the top-level list, replies right
+    after their parent.
+    """
+    by_id: dict[str, Comment] = {}
+    for item in items:
+        for reply in item.get("replies", {}).get("data", []):
+            comment = _comment_from_item(reply, media_id, parent_id=str(item["id"]))
+            by_id.setdefault(comment.comment_id, comment)
+
+    ordered: list[Comment] = []
+    emitted: set[str] = set()
+    for item in items:
+        comment_id = str(item["id"])
+        if comment_id in emitted:
+            continue
+        comment = by_id.get(comment_id) or _comment_from_item(item, media_id, parent_id=None)
+        ordered.append(comment)
+        emitted.add(comment_id)
+        for reply in item.get("replies", {}).get("data", []):
+            reply_id = str(reply["id"])
+            if reply_id not in emitted:
+                ordered.append(by_id[reply_id])
+                emitted.add(reply_id)
+    return ordered
+
+
+def _comment_from_item(item: dict[str, Any], media_id: str, *, parent_id: str | None) -> Comment:
         author = item.get("from") or {}
         return Comment(
             comment_id=str(item["id"]),
