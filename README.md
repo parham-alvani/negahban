@@ -69,6 +69,11 @@ Secrets live in [gopass](https://www.gopass.pw/), not in `.env`:
 | e.g. `token/instagram/your.username`| the access token      | `NEGAHBAN_GOPASS_TOKEN`       |
 | e.g. `token/anthropic/negahban`     | the Anthropic API key | `NEGAHBAN_GOPASS_ANTHROPIC_KEY` (else the SDK's `ANTHROPIC_API_KEY`) |
 
+Claude can also be reached through [OpenRouter](https://openrouter.ai): put an OpenRouter key
+in that gopass entry and set `ANTHROPIC_BASE_URL=https://openrouter.ai/api` and
+`NEGAHBAN_MODEL=anthropic/claude-opus-5` in `.env` (the SDK appends `/v1/messages`, so the
+base URL stops at `/api`).
+
 Connect the account with Instagram's own login page:
 
 ```bash
