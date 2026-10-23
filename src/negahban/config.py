@@ -25,7 +25,7 @@ from negahban.secrets import (
 TOKEN_FILE = Path("token.json")
 AUDIT_DB = Path("negahban.db")
 
-DEFAULT_MODEL = "claude-opus-5"
+DEFAULT_MODEL = "claude-opus-5-5"
 DEFAULT_MAX_POSTS = 10
 
 # Where Instagram sends the browser after login. A static page that shows the

@@ -82,7 +82,7 @@ Secrets live in [gopass](https://www.gopass.pw/), not in `.env`:
 
 Claude can also be reached through [OpenRouter](https://openrouter.ai): put an OpenRouter key
 in that gopass entry and set `ANTHROPIC_BASE_URL=https://openrouter.ai/api` and
-`NEGAHBAN_MODEL=anthropic/claude-opus-5` in `.env` (the SDK appends `/v1/messages`, so the
+`NEGAHBAN_MODEL=anthropic/claude-opus-5-5` in `.env` (the SDK appends `/v1/messages`, so the
 base URL stops at `/api`).
 
 Connect the account with Instagram's own login page:
